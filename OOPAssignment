@@ -1,0 +1,192 @@
+import java.sql.*;
+import java.util.Scanner;
+
+public class Main {
+    private static final String URL = "jdbc:postgresql://localhost:5432/sports_club_management";
+    private static final String USER = "postgres";
+    private static final String PASSWORD = "1234";
+
+    public static Connection connect() {
+        try {
+            return DriverManager.getConnection(URL, USER, PASSWORD);
+        } catch (SQLException e) {
+            System.out.println("Error Connection: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public static void createTables() {
+        String createSportsClubTable = "CREATE TABLE IF NOT EXISTS sports_club (" +
+                "id SERIAL PRIMARY KEY, " +
+                "name VARCHAR(100) NOT NULL, " +
+                "city VARCHAR(100) NOT NULL)";
+
+        String createPlayerTable = "CREATE TABLE IF NOT EXISTS player (" +
+                "id SERIAL PRIMARY KEY, " +
+                "name VARCHAR(100) NOT NULL, " +
+                "age INT NOT NULL, " +
+                "club_id INT REFERENCES sports_club(id) ON DELETE SET NULL)";
+
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate(createSportsClubTable);
+            stmt.executeUpdate(createPlayerTable);
+            System.out.println("Tables created successfully.");
+        } catch (SQLException e) {
+            System.out.println("Error creating tables: " + e.getMessage());
+        }
+    }
+
+
+    public static void addSportsClub(Scanner scanner) {
+        System.out.print("Enter club name: ");
+        String name = scanner.nextLine();
+        System.out.print("Enter club city: ");
+        String city = scanner.nextLine();
+
+        String sql = "INSERT INTO sports_club (name, city) VALUES (?, ?)";
+        try (Connection conn = connect();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, name);
+            stmt.setString(2, city);
+            stmt.executeUpdate();
+            System.out.println("Club added successfully.");
+        } catch (SQLException e) {
+            System.out.println("Error adding club: " + e.getMessage());
+        }
+    }
+
+
+    public static void addPlayer(Scanner scanner) {
+        System.out.print("Enter player name: ");
+        String name = scanner.nextLine();
+        System.out.print("Enter player age: ");
+        int age = scanner.nextInt();
+        System.out.print("Enter club ID (0 if none): ");
+        int clubId = scanner.nextInt();
+        scanner.nextLine();
+
+        String sql = "INSERT INTO player (name, age, club_id) VALUES (?, ?, ?)";
+        try (Connection conn = connect();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, name);
+            stmt.setInt(2, age);
+            stmt.setObject(3, clubId == 0 ? null : clubId, Types.INTEGER);
+            stmt.executeUpdate();
+            System.out.println("Player added successfully.");
+        } catch (SQLException e) {
+            System.out.println("Error adding player: " + e.getMessage());
+        }
+    }
+
+
+    public static void listSportsClubs() {
+        String sql = "SELECT * FROM sports_club";
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            System.out.println("\nSports Clubs:");
+            while (rs.next()) {
+                System.out.println(rs.getInt("id") + ". " + rs.getString("name") + " - " + rs.getString("city"));
+            }
+        } catch (SQLException e) {
+            System.out.println("Error retrieving clubs: " + e.getMessage());
+        }
+    }
+
+
+    public static void listPlayers() {
+        String sql = "SELECT player.id, player.name, player.age, COALESCE(sports_club.name, 'No Club') AS club " +
+                "FROM player LEFT JOIN sports_club ON player.club_id = sports_club.id";
+        try (Connection conn = connect();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            System.out.println("\nPlayers:");
+            while (rs.next()) {
+                System.out.println(rs.getInt("id") + ". " + rs.getString("name") + ", Age: " +
+                        rs.getInt("age") + ", Club: " + rs.getString("club"));
+            }
+        } catch (SQLException e) {
+            System.out.println("Error retrieving players: " + e.getMessage());
+        }
+    }
+
+    public static void updateSportsClubName(Scanner scanner) {
+        System.out.print("Enter club ID to update: ");
+        int id = scanner.nextInt();
+        scanner.nextLine();
+        System.out.print("Enter new club name: ");
+        String newName = scanner.nextLine();
+
+        String sql = "UPDATE sports_club SET name = ? WHERE id = ?";
+        try (Connection conn = connect();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, newName);
+            stmt.setInt(2, id);
+            int updatedRows = stmt.executeUpdate();
+            if (updatedRows > 0) {
+                System.out.println("Club name updated successfully.");
+            } else {
+                System.out.println("Club not found.");
+            }
+        } catch (SQLException e) {
+            System.out.println("Error updating club name: " + e.getMessage());
+        }
+    }
+
+
+    public static void deletePlayer(Scanner scanner) {
+        System.out.print("Enter player ID to delete: ");
+        int id = scanner.nextInt();
+        scanner.nextLine();
+
+        String sql = "DELETE FROM player WHERE id = ?";
+        try (Connection conn = connect();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, id);
+            int deletedRows = stmt.executeUpdate();
+            if (deletedRows > 0) {
+                System.out.println("Player deleted successfully.");
+            } else {
+                System.out.println("Player not found.");
+            }
+        } catch (SQLException e) {
+            System.out.println("Error deleting player: " + e.getMessage());
+        }
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        createTables();
+
+        while (true) {
+            System.out.println("\nMenu:");
+            System.out.println("1. Add Sports Club");
+            System.out.println("2. Add Player");
+            System.out.println("3. Show Sports Clubs");
+            System.out.println("4. Show Players");
+            System.out.println("5. Update Club Name");
+            System.out.println("6. Delete Player");
+            System.out.println("0. Exit");
+            System.out.print("Choose: ");
+
+            int choice = scanner.nextInt();
+            scanner.nextLine();
+
+            switch (choice) {
+                case 1 -> addSportsClub(scanner);
+                case 2 -> addPlayer(scanner);
+                case 3 -> listSportsClubs();
+                case 4 -> listPlayers();
+                case 5 -> updateSportsClubName(scanner);
+                case 6 -> deletePlayer(scanner);
+                case 0 -> {
+                    System.out.println("Exiting...");
+                    scanner.close();
+                    return;
+                }
+                default -> System.out.println("Invalid choice.");
+            }
+        }
+    }
+}
